@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Station-S | Applicant Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 18px;
+        border-radius: 12px;
+        background: var(--panel-color);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        font-size: 28px;
+        color: var(--text-color);
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .quick-actions a {
+        text-decoration: none;
+        color: white;
+        background: #2B5A7F;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-weight: 600;
+    }
+
+    .section-card {
+        background: var(--panel-color);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .section-title {
+        margin: 0 0 12px;
+        font-size: 20px;
+        color: var(--text-color);
+    }
+
+    .jobs-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 12px;
+    }
+
+    .job-item {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    body.dark .job-item {
+        background: #2f2f2f;
+        border-color: #444;
+    }
+
+    .job-item h4 {
+        margin: 0 0 6px;
+    }
+
+    .applications-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .applications-table th,
+    .applications-table td {
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+        padding: 10px;
+    }
+
+    .applications-table th {
+        background: #2B5A7F;
+        color: white;
+    }
+
+    .empty-state {
+        opacity: 0.8;
+    }
+</style>
+
+<div class="dashboard-header">
+    <h1 class="dashboard-title">
+        <i class="uil uil-user"></i>
+        Applicant Dashboard
+    </h1>
+    <div class="quick-actions">
+        <a href="{{ url_for('main.browse_jobs') }}">Browse Jobs</a>
+        <a href="{{ url_for('main.view_applications') }}">My Applications</a>
+    </div>
+</div>
+
+<div class="section-card">
+    <h2 class="section-title">Recent Applications</h2>
+    {% if recent_applications %}
+    <table class="applications-table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Applied On</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for application in recent_applications %}
+            <tr>
+                <td>{{ application.job.title }}</td>
+                <td>{{ application.timestamp.strftime('%Y-%m-%d') }}</td>
+                <td>{{ application.status }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">You have not applied to any jobs yet.</p>
+    {% endif %}
+</div>
+
+<div class="section-card">
+    <h2 class="section-title">Suggested Jobs</h2>
+    {% if jobs %}
+    <div class="jobs-list">
+        {% for job in jobs[:6] %}
+        <div class="job-item">
+            <h4>{{ job.title }}</h4>
+            <p>{{ job.location }} | {{ job.salary }}</p>
+            <a href="{{ url_for('main.job_detail', job_id=job.id) }}">View Details</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No jobs available right now.</p>
+    {% endif %}
+</div>
+{% endblock %}

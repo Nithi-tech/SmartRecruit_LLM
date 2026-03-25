@@ -126,12 +126,24 @@
         <i class="uil uil-users icon"></i>
         <h1 class="page-title">Candidates for Job</h1>
     </div>
+    <div style="margin: 15px 0; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+        <form action="{{ url_for('main.run_shortlisting_now', job_id=job.id) }}" method="post" style="display:inline;">
+            <button type="submit" class="view-interview-button">Run Shortlisting</button>
+        </form>
+        <a href="{{ url_for('main.shortlist_report', job_id=job.id) }}" class="view-interview-button">View Shortlist Report</a>
+        {% for round_cfg in round_configs %}
+            <a href="{{ url_for('main.round_scoring_form', job_id=job.id, round_number=round_cfg.round_number) }}" class="view-interview-button">
+                Round {{ round_cfg.round_number }} Scoring
+            </a>
+        {% endfor %}
+    </div>
     <table class="candidates-table">
         <thead>
             <tr>
                 <th>Candidate Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>Status</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -141,6 +153,7 @@
                 <td>{{ candidate.name }}</td>
                 <td>{{ candidate.email }}</td>
                 <td>{{ candidate.phone }}</td>
+                <td>{{ candidate.status }}</td>
                 <td>
                     <a href="{{ url_for('main.view_interview', application_id=candidate.application_id) }}" class="view-interview-button">View Interview</a>
                 </td>

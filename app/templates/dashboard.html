@@ -56,6 +56,34 @@
         margin-bottom: 20px;
     }
 
+    .funnel-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .funnel-card {
+        background: var(--panel-color);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 14px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .funnel-card h4 {
+        margin: 0;
+        font-size: 13px;
+        color: var(--black-light-color);
+    }
+
+    .funnel-card p {
+        margin: 6px 0 0 0;
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+
     .col-md-6 {
         flex: 1;
         min-width: 300px;
@@ -161,6 +189,15 @@
             {% endfor %}
         </select>
     </div>
+</div>
+
+<div class="funnel-cards">
+    <div class="funnel-card"><h4>Applied</h4><p>{{ funnel_counts.applied }}</p></div>
+    <div class="funnel-card"><h4>ATS Scored</h4><p>{{ funnel_counts.ats_scored }}</p></div>
+    <div class="funnel-card"><h4>Shortlisted</h4><p>{{ funnel_counts.shortlisted }}</p></div>
+    <div class="funnel-card"><h4>In Rounds</h4><p>{{ funnel_counts.in_rounds }}</p></div>
+    <div class="funnel-card"><h4>Offer</h4><p>{{ funnel_counts.offer }}</p></div>
+    <div class="funnel-card"><h4>Rejected</h4><p>{{ funnel_counts.final_rejection }}</p></div>
 </div>
 
 <div id="graphsContainer" class="row" style="display: none;">

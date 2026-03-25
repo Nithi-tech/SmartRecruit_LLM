@@ -10,7 +10,12 @@ db = SQLAlchemy()
 migrate = Migrate()
 sess = Session()
 
-mongo_client = MongoClient('mongodb://localhost:27017/')
+mongo_client = MongoClient(
+    'mongodb://localhost:27017/',
+    serverSelectionTimeoutMS=1000,
+    connectTimeoutMS=1000,
+    socketTimeoutMS=1000
+)
 mongodb = mongo_client['applications']
 applications_collection = mongodb['applications']
 
@@ -59,6 +64,7 @@ def create_app():
     sess.init_app(app)
 
     with app.app_context():
+        db.create_all()
         _ensure_user_role_schema()
         from .routes import main as main_blueprint
         app.register_blueprint(main_blueprint)

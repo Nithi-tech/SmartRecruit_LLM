@@ -9,23 +9,190 @@
         <span class="text">Create Job</span>
     </div>
     <form action="{{ url_for('main.create_job') }}" method="post">
+        <h3>Job Basics</h3>
         <div class="form-group">
             <label for="job-title">Job Title</label>
             <input type="text" id="job-title" name="title" placeholder="Enter job title" required>
+        </div>
+        <div class="form-group">
+            <label for="department">Department</label>
+            <input type="text" id="department" name="department" placeholder="Engineering, Product, HR..." required>
+        </div>
+        <div class="form-group">
+            <label for="employment-type">Employment Type</label>
+            <select id="employment-type" name="employment_type" required>
+                <option value="">Select employment type</option>
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Internship">Internship</option>
+                <option value="Contract">Contract</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="work-mode">Work Mode</label>
+            <select id="work-mode" name="work_mode" required>
+                <option value="">Select work mode</option>
+                <option value="Remote">Remote</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="On-site">On-site</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="job-description">Job Description</label>
             <textarea id="job-description" name="description" placeholder="Enter job description" required></textarea>
         </div>
         <div class="form-group">
+            <label for="role-summary">Role Summary</label>
+            <textarea id="role-summary" name="role_summary" placeholder="Day-to-day role summary" required></textarea>
+        </div>
+        <div class="form-group">
             <label for="job-location">Location</label>
-            <select id="job-location" name="location" required>
-                <option value="" disabled selected>Select job location</option>
-            </select>
+            <input
+                type="text"
+                id="job-location"
+                name="location"
+                list="job-location-list"
+                placeholder="Enter or select location"
+                required
+            >
+            <datalist id="job-location-list"></datalist>
+        </div>
+        <div class="form-group">
+            <label for="application-deadline">Application Deadline</label>
+            <input type="datetime-local" id="application-deadline" name="application_deadline" required>
         </div>
         <div class="form-group">
             <label for="job-salary">Salary</label>
             <input type="number" id="job-salary" name="salary" placeholder="Enter job salary" required step="0.01">
+        </div>
+
+        <h3>Qualifications</h3>
+        <div class="form-group">
+            <label for="key-responsibilities">Key Responsibilities (one per line)</label>
+            <textarea id="key-responsibilities" name="key_responsibilities" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="required-qualifications">Required Qualifications (one per line)</label>
+            <textarea id="required-qualifications" name="required_qualifications" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="preferred-qualifications">Preferred Qualifications (one per line)</label>
+            <textarea id="preferred-qualifications" name="preferred_qualifications"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="tech-stack">Tech Stack / Tools (one per line)</label>
+            <textarea id="tech-stack" name="tech_stack"></textarea>
+        </div>
+
+        <h3>Shortlisting Criteria</h3>
+        <div class="form-group">
+            <label for="expected-applicants">Expected Applicants</label>
+            <input type="number" id="expected-applicants" name="expected_applicants" min="1" required>
+        </div>
+        <div class="form-group">
+            <label for="shortlist-mode">Shortlist Mode</label>
+            <select id="shortlist-mode" name="shortlist_mode" required>
+                <option value="count">Exact number</option>
+                <option value="percentage">Percentage</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="shortlist-value">Shortlist Value</label>
+            <input type="number" id="shortlist-value" name="shortlist_value" min="1" required>
+        </div>
+        <div class="form-group">
+            <label for="min-ats-threshold">Minimum ATS Threshold (0-100)</label>
+            <input type="number" id="min-ats-threshold" name="min_ats_threshold" min="0" max="100" value="70" required>
+        </div>
+        <div class="form-group">
+            <label for="mandatory-filters">Mandatory Filters (one per line)</label>
+            <textarea id="mandatory-filters" name="mandatory_filters" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="preferred-filters">Preferred Filters (one per line)</label>
+            <textarea id="preferred-filters" name="preferred_filters"></textarea>
+        </div>
+
+        <h3>Interview Rounds</h3>
+        <p>Add each round configuration and click Add Round.</p>
+        <div class="form-group">
+            <label for="round-number">Round Number</label>
+            <input type="number" id="round-number" min="1" value="1">
+        </div>
+        <div class="form-group">
+            <label for="round-name">Round Name</label>
+            <input type="text" id="round-name" placeholder="Technical Screening">
+        </div>
+        <div class="form-group">
+            <label for="round-type">Round Type</label>
+            <select id="round-type">
+                <option value="AI Interview">AI Interview</option>
+                <option value="Live Interview">Live Interview</option>
+                <option value="Assignment">Assignment / Take-home Task</option>
+                <option value="Group Discussion">Group Discussion</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="round-duration">Duration (minutes)</label>
+            <input type="number" id="round-duration" min="10" value="30">
+        </div>
+        <div class="form-group">
+            <label for="round-focus">Topics / Focus Areas (one per line)</label>
+            <textarea id="round-focus"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="round-advance">Advance Count After This Round</label>
+            <input type="number" id="round-advance" min="0">
+        </div>
+        <div class="form-group">
+            <label for="round-rubric">Evaluation Rubric (one per line)</label>
+            <textarea id="round-rubric"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="round-window">Schedule Window</label>
+            <input type="text" id="round-window" placeholder="2026-04-10 09:00-17:00 IST or to be scheduled dynamically">
+        </div>
+        <button type="button" id="add-round-btn">Add Round</button>
+        <ul id="rounds-preview"></ul>
+        <input type="hidden" id="rounds-payload" name="rounds_payload" required>
+
+        <h3>Notification Preferences</h3>
+        <div class="form-group">
+            <label for="notification-tone">Email Tone</label>
+            <select id="notification-tone" name="notification_tone" required>
+                <option value="formal">Formal</option>
+                <option value="semi-formal">Semi-formal</option>
+                <option value="friendly">Friendly</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="company-display-name">Company Name for Emails</label>
+            <input type="text" id="company-display-name" name="company_display_name" required>
+        </div>
+        <div class="form-group">
+            <label for="company-logo-url">Company Logo URL</label>
+            <input type="url" id="company-logo-url" name="company_logo_url">
+        </div>
+        <div class="form-group">
+            <label for="reply-to-email">Reply-To Email</label>
+            <input type="email" id="reply-to-email" name="reply_to_email" required>
+        </div>
+        <div class="form-group">
+            <label for="send-rejection-emails">Send Rejection Emails?</label>
+            <select id="send-rejection-emails" name="send_rejection_emails" required>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="rejection-timing">Rejection Email Timing</label>
+            <input type="text" id="rejection-timing" name="rejection_timing" value="after_shortlisting" required>
+        </div>
+
+        <h3>Confirmation</h3>
+        <div class="form-group">
+            <label for="confirm-publish">Type CONFIRM to publish this job</label>
+            <input type="text" id="confirm-publish" name="confirm_publish" required>
         </div>
         <button type="submit">Create Job</button>
     </form>
@@ -33,22 +200,95 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const locationSelect = document.getElementById('job-location');
+        const locationList = document.getElementById('job-location-list');
+        const rounds = [];
+        const roundsPreview = document.getElementById('rounds-preview');
+        const roundsPayload = document.getElementById('rounds-payload');
+        const addRoundBtn = document.getElementById('add-round-btn');
+        const defaults = [
+            'Remote',
+            'Hybrid',
+            'On-site',
+            'New York, USA',
+            'London, UK',
+            'Berlin, Germany',
+            'Dubai, UAE',
+            'Bengaluru, India',
+            'Chennai, India',
+            'Singapore'
+        ];
+
+        const addOptions = (values) => {
+            const existing = new Set(Array.from(locationList.options).map((o) => o.value));
+            values.forEach((value) => {
+                if (!value || existing.has(value)) {
+                    return;
+                }
+                const option = document.createElement('option');
+                option.value = value;
+                locationList.appendChild(option);
+                existing.add(value);
+            });
+        };
+
+        addOptions(defaults);
 
         fetch('https://restcountries.com/v3.1/all')
-            .then(response => response.json())
-            .then(data => {
-                // Sort countries alphabetically
-                data.sort((a, b) => a.name.common.localeCompare(b.name.common));
-
-                data.forEach(country => {
-                    const option = document.createElement('option');
-                    option.value = country.name.common;
-                    option.textContent = country.name.common;
-                    locationSelect.appendChild(option);
-                });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Location service unavailable');
+                }
+                return response.json();
             })
-            .catch(error => console.error('Error fetching country data:', error));
+            .then(data => {
+                const countries = data
+                    .map(country => country?.name?.common)
+                    .filter(Boolean)
+                    .sort((a, b) => a.localeCompare(b));
+                addOptions(countries);
+            })
+            .catch(() => {
+                // Keep built-in defaults when external API fails.
+            });
+
+        addRoundBtn.addEventListener('click', () => {
+            const round = {
+                round_number: Number(document.getElementById('round-number').value || rounds.length + 1),
+                round_name: document.getElementById('round-name').value.trim(),
+                round_type: document.getElementById('round-type').value,
+                duration_minutes: Number(document.getElementById('round-duration').value || 30),
+                focus_areas: document.getElementById('round-focus').value.split('\n').map(v => v.trim()).filter(Boolean),
+                advance_count: document.getElementById('round-advance').value ? Number(document.getElementById('round-advance').value) : null,
+                evaluation_rubric: document.getElementById('round-rubric').value.split('\n').map(v => v.trim()).filter(Boolean),
+                schedule_window: document.getElementById('round-window').value.trim() || 'to be scheduled dynamically'
+            };
+
+            if (!round.round_name) {
+                alert('Round name is required');
+                return;
+            }
+
+            rounds.push(round);
+            roundsPayload.value = JSON.stringify(rounds);
+
+            const item = document.createElement('li');
+            item.textContent = `Round ${round.round_number}: ${round.round_name} (${round.round_type})`;
+            roundsPreview.appendChild(item);
+
+            document.getElementById('round-name').value = '';
+            document.getElementById('round-focus').value = '';
+            document.getElementById('round-advance').value = '';
+            document.getElementById('round-rubric').value = '';
+            document.getElementById('round-window').value = '';
+            document.getElementById('round-number').value = String(rounds.length + 1);
+        });
+
+        document.querySelector('form').addEventListener('submit', (event) => {
+            if (!rounds.length) {
+                event.preventDefault();
+                alert('Add at least one interview round before publishing.');
+            }
+        });
     });
 </script>
 {% endblock %}

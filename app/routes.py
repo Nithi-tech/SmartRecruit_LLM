@@ -3,16 +3,62 @@ from markdown import markdown
 from werkzeug.utils import secure_filename
 from functools import wraps
 from datetime import datetime
+from sqlalchemy import func
+from pymongo.errors import PyMongoError
 import os
 import pdfplumber  # type: ignore
 import logging
 import time
+import json
 
 from . import db, applications_collection
-from .models import User, Job, Application
+from .models import (
+    User,
+    Job,
+    Application,
+    ATSResult,
+    JobConfig,
+    InterviewRoundConfig,
+    RoundEvaluation,
+    ApplicantPipelineState,
+)
+from .pipeline import (
+    build_funnel_summary,
+    complete_round_and_advance,
+    parse_resume_to_json,
+    parse_rounds_payload,
+    run_shortlisting,
+    score_resume_against_job,
+    send_acknowledgement_email,
+    should_auto_shortlist,
+    upsert_pipeline_state,
+)
 from .utils import allowed_file, evaluate_cv, extract_score, generate_interview_questions, generate_feedback, convert_keys_to_strings
 
 main = Blueprint('main', __name__)
+
+
+def mongo_find_one(query):
+    try:
+        return applications_collection.find_one(query)
+    except PyMongoError as e:
+        logging.warning(f"MongoDB find_one unavailable: {e}")
+        return None
+
+
+def mongo_insert_one(document):
+    try:
+        applications_collection.insert_one(document)
+        return True
+    except PyMongoError as e:
+        logging.warning(f"MongoDB insert_one unavailable: {e}")
+        return False
+
+
+def parse_lines_field(raw_value):
+    if not raw_value:
+        return []
+    return [item.strip() for item in raw_value.splitlines() if item.strip()]
 
 @main.before_app_request
 def load_user():
@@ -89,7 +135,7 @@ def auth():
                 user_role = 'applicant'
 
             company_name = request.form.get('company_name', '').strip()
-            email = request.form['email']
+            email = request.form['email'].strip().lower()
             phone_number = request.form['phone_number']
             birthday = request.form['birthday']
             password = request.form['password']
@@ -108,7 +154,9 @@ def auth():
                 return redirect(url_for('main.auth'))
 
             # Check if the email already exists
-            existing_user = User.query.filter_by(email=email).first()
+            existing_user = User.query.filter(
+                func.lower(func.trim(User.email)) == email
+            ).first()
             if existing_user:
                 flash('An account with this email already exists.', 'danger')
                 return redirect(url_for('main.auth'))
@@ -131,11 +179,13 @@ def auth():
 
         elif action == 'signin':
             # Collect form data
-            email = request.form['email']
+            email = request.form['email'].strip().lower()
             password = request.form['password']
 
             # Check if the user exists
-            user = User.query.filter_by(email=email).first()
+            user = User.query.filter(
+                func.lower(func.trim(User.email)) == email
+            ).first()
             if user and user.check_password(password):
                 db.session.commit()
                 session['user_id'] = user.id
@@ -163,6 +213,57 @@ def create_job():
         location = request.form['location']
         description = request.form['description']
         salary = request.form['salary']
+        department = request.form.get('department', '').strip()
+        employment_type = request.form.get('employment_type', '').strip()
+        work_mode = request.form.get('work_mode', '').strip()
+        application_deadline_raw = request.form.get('application_deadline', '').strip()
+        role_summary = request.form.get('role_summary', '').strip()
+        expected_applicants_raw = request.form.get('expected_applicants', '').strip()
+        shortlist_mode = request.form.get('shortlist_mode', 'count').strip()
+        shortlist_value_raw = request.form.get('shortlist_value', '').strip()
+        min_ats_threshold_raw = request.form.get('min_ats_threshold', '70').strip()
+        notification_tone = request.form.get('notification_tone', 'Formal').strip().lower()
+        company_display_name = request.form.get('company_display_name', g.user.company_name).strip()
+        company_logo_url = request.form.get('company_logo_url', '').strip()
+        reply_to_email = request.form.get('reply_to_email', g.user.email).strip().lower()
+        send_rejection_emails = request.form.get('send_rejection_emails', 'yes').strip().lower() == 'yes'
+        rejection_timing = request.form.get('rejection_timing', 'after_shortlisting').strip()
+        confirm_publish = request.form.get('confirm_publish', '').strip()
+        rounds_payload = request.form.get('rounds_payload', '').strip()
+
+        required_fields = [
+            department,
+            employment_type,
+            work_mode,
+            application_deadline_raw,
+            role_summary,
+            expected_applicants_raw,
+            shortlist_value_raw,
+            min_ats_threshold_raw,
+            company_display_name,
+            reply_to_email,
+        ]
+        if not all(required_fields):
+            flash('Please complete all required job configuration fields before publishing.', 'danger')
+            return redirect(url_for('main.create_job'))
+
+        if confirm_publish != 'CONFIRM':
+            flash("Type CONFIRM to publish this job.", 'danger')
+            return redirect(url_for('main.create_job'))
+
+        try:
+            deadline_dt = datetime.strptime(application_deadline_raw, '%Y-%m-%dT%H:%M')
+            expected_applicants = int(expected_applicants_raw)
+            shortlist_value = float(shortlist_value_raw)
+            min_ats_threshold = float(min_ats_threshold_raw)
+            rounds = parse_rounds_payload(rounds_payload)
+        except ValueError as e:
+            flash(f'Invalid job configuration values: {e}', 'danger')
+            return redirect(url_for('main.create_job'))
+
+        if not rounds:
+            flash('Add at least one interview round configuration before publishing.', 'danger')
+            return redirect(url_for('main.create_job'))
 
         new_job = Job(
             title=title,
@@ -172,8 +273,56 @@ def create_job():
             user_id=g.user.id
         )
         db.session.add(new_job)
+        db.session.flush()
+
+        config = JobConfig(
+            job_id=new_job.id,
+            department=department,
+            employment_type=employment_type,
+            work_mode=work_mode,
+            location_display=location,
+            application_deadline=deadline_dt,
+            role_summary=role_summary,
+            key_responsibilities=parse_lines_field(request.form.get('key_responsibilities', '')),
+            required_qualifications=parse_lines_field(request.form.get('required_qualifications', '')),
+            preferred_qualifications=parse_lines_field(request.form.get('preferred_qualifications', '')),
+            tech_stack=parse_lines_field(request.form.get('tech_stack', '')),
+            expected_applicants=expected_applicants,
+            shortlist_mode=shortlist_mode,
+            shortlist_value=shortlist_value,
+            min_ats_threshold=min_ats_threshold,
+            mandatory_filters=parse_lines_field(request.form.get('mandatory_filters', '')),
+            preferred_filters=parse_lines_field(request.form.get('preferred_filters', '')),
+            notification_tone=notification_tone,
+            company_display_name=company_display_name,
+            company_logo_url=company_logo_url,
+            reply_to_email=reply_to_email,
+            send_rejection_emails=send_rejection_emails,
+            rejection_timing=rejection_timing,
+            confirmed=True,
+            published_at=datetime.utcnow(),
+        )
+        db.session.add(config)
+
+        for round_row in rounds:
+            db.session.add(
+                InterviewRoundConfig(
+                    job_id=new_job.id,
+                    round_number=round_row['round_number'],
+                    round_name=round_row['round_name'],
+                    round_type=round_row['round_type'],
+                    duration_minutes=round_row['duration_minutes'],
+                    focus_areas=round_row['focus_areas'],
+                    advance_count=round_row['advance_count'],
+                    evaluation_rubric=round_row['evaluation_rubric'],
+                    schedule_window=round_row['schedule_window'],
+                )
+            )
+
         db.session.commit()
-        flash('Job created successfully!', 'success')
+
+        funnel = build_funnel_summary(new_job)
+        flash(f'Job published. Funnel: {funnel}', 'success')
         return redirect(url_for('main.my_jobs'))
 
     return render_template('create_job.html')
@@ -230,7 +379,7 @@ def settings():
             first_name = request.form.get('first_name')
             last_name = request.form.get('last_name')
             company_name = request.form.get('company_name')
-            email = request.form.get('email')
+            email = request.form.get('email', '').strip().lower()
             phone_number = request.form.get('phone_number')
             birthday = request.form.get('birthday')
 
@@ -250,6 +399,14 @@ def settings():
             user.first_name = first_name
             user.last_name = last_name
             user.company_name = company_name
+            existing_user = User.query.filter(
+                func.lower(func.trim(User.email)) == email,
+                User.id != user.id
+            ).first()
+            if existing_user:
+                flash('An account with this email already exists.', 'danger')
+                return redirect(url_for('main.settings'))
+
             user.email = email
             user.phone_number = phone_number
             user.birthday = birthday
@@ -277,7 +434,7 @@ def settings():
         if 'upload_cv' in request.form:
             if 'cv_file' in request.files:
                 cv_file = request.files['cv_file']
-                if cv_file and allowed_file(cv_file.filename, {'pdf'}):
+                if cv_file and allowed_file(cv_file.filename, {'pdf', 'docx'}):
                     cv_filename = secure_filename(cv_file.filename)
                     cv_file.save(os.path.join(current_app.config['UPLOAD_FOLDER_CV'], cv_filename))
                     user.cv_file = cv_filename
@@ -306,9 +463,13 @@ def job_detail(job_id):
 @role_required('applicant', 'both')
 def apply(job_id):
     job = Job.query.get_or_404(job_id)
+    config = JobConfig.query.filter_by(job_id=job.id, confirmed=True).first()
+    if config is None:
+        flash('This job is not fully configured for automated hiring yet.', 'danger')
+        return redirect(url_for('main.job_detail', job_id=job_id))
 
     existing_application_sqlite = Application.query.filter_by(user_id=g.user.id, job_id=job_id).first()
-    existing_application_mongo = applications_collection.find_one({
+    existing_application_mongo = mongo_find_one({
         'user_id': str(g.user.id),
         'job_id': str(job_id)
     })
@@ -327,26 +488,68 @@ def apply(job_id):
         return redirect(url_for('main.settings'))
 
     try:
-        with pdfplumber.open(cv_path) as pdf:
-            text = ''.join(page.extract_text() for page in pdf.pages if page.extract_text())
+        parsed_resume = parse_resume_to_json(cv_path)
     except Exception as e:
         logging.error(f"Failed to process CV: {e}")
         flash('Failed to process CV.', 'danger')
         return redirect(url_for('main.job_detail', job_id=job_id))
 
-    match, similarity_score = evaluate_cv(text, job.description)
-    if not match:
-        flash(f'Your CV does not match the job requirements. Similarity score: {similarity_score:.2f}', 'error')
-        return redirect(url_for('main.job_detail', job_id=job_id))
+    score = score_resume_against_job(job, config, parsed_resume)
 
-    questions = generate_interview_questions(text, job.description)
-    session['questions'] = questions
-    session['current_question'] = 0
-    session['responses'] = {}
-    session['job_id'] = job_id
-    session['similarity_score'] = similarity_score
+    new_application = Application(
+        user_id=g.user.id,
+        job_id=job_id,
+        message=str(score.ats_score),
+        timestamp=datetime.utcnow(),
+        status='Applied'
+    )
+    db.session.add(new_application)
+    db.session.flush()
 
-    return redirect(url_for('main.interview_questions'))
+    ats_row = ATSResult(
+        application_id=new_application.id,
+        applicant_id=g.user.id,
+        job_id=job_id,
+        ats_score=score.ats_score,
+        score_breakdown=score.score_breakdown,
+        matched_keywords=score.matched_keywords,
+        missing_keywords=score.missing_keywords,
+        experience_summary=score.experience_summary,
+        shortlist_eligible=score.shortlist_eligible,
+        shortlist_reason=score.shortlist_reason,
+        parsed_resume=parsed_resume,
+    )
+    db.session.add(ats_row)
+    upsert_pipeline_state(new_application, 'ATS_SCORED')
+    send_acknowledgement_email(g.user, job, config)
+
+    application_data = {
+        'application_id': str(new_application.id),
+        'user_id': str(g.user.id),
+        'job_id': str(job_id),
+        'ats_result': {
+            'ats_score': score.ats_score,
+            'score_breakdown': score.score_breakdown,
+            'matched_keywords': score.matched_keywords,
+            'missing_keywords': score.missing_keywords,
+            'experience_summary': score.experience_summary,
+            'shortlist_eligible': score.shortlist_eligible,
+            'shortlist_reason': score.shortlist_reason,
+        },
+    }
+    mongo_insert_one(application_data)
+
+    db.session.commit()
+
+    if should_auto_shortlist(job, config):
+        report = run_shortlisting(job, config)
+        flash(
+            f"Shortlisting completed: {report['received']} received, {report['shortlisted']} shortlisted, {report['rejected']} rejected.",
+            'info'
+        )
+
+    flash('Application submitted and ATS scored successfully!', 'success')
+    return redirect(url_for('main.view_applications'))
 
 @main.route('/interview_questions', methods=['GET', 'POST'])
 @role_required('applicant', 'both')
@@ -416,10 +619,64 @@ def generate_feedbacks():
         'responses': convert_keys_to_strings(responses),
         'feedback': feedback_list
     }
-    applications_collection.insert_one(application_data)
+    if not mongo_insert_one(application_data):
+        flash('Application saved, but interview analytics storage is temporarily unavailable.', 'info')
 
     flash('Application submitted successfully!', 'success')
     return redirect(url_for('main.view_applications'))
+
+
+@main.route('/job/<int:job_id>/run_shortlisting', methods=['POST'])
+@role_required('recruiter', 'both')
+def run_shortlisting_now(job_id):
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != g.user.id:
+        abort(403)
+
+    config = JobConfig.query.filter_by(job_id=job.id, confirmed=True).first()
+    if config is None:
+        flash('Job configuration not found.', 'danger')
+        return redirect(url_for('main.my_jobs'))
+
+    report = run_shortlisting(job, config)
+    ties_message = ' Tie at cutoff included extra candidates.' if report['ties_included'] else ''
+    flash(
+        f"Shortlisting complete: {report['received']} received, {report['shortlisted']} shortlisted, {report['rejected']} rejected.{ties_message}",
+        'success'
+    )
+    return redirect(url_for('main.view_candidates', job_id=job.id))
+
+
+@main.route('/job/<int:job_id>/complete_round/<int:round_number>', methods=['POST'])
+@role_required('recruiter', 'both')
+def complete_round(job_id, round_number):
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != g.user.id:
+        abort(403)
+
+    payload = request.form.get('round_evaluations') or request.get_json(silent=True)
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            flash('Invalid round evaluations payload.', 'danger')
+            return redirect(url_for('main.view_candidates', job_id=job.id))
+
+    if not isinstance(payload, list):
+        flash('Round evaluations must be a JSON array.', 'danger')
+        return redirect(url_for('main.view_candidates', job_id=job.id))
+
+    try:
+        report = complete_round_and_advance(job, round_number, payload)
+    except ValueError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('main.view_candidates', job_id=job.id))
+
+    flash(
+        f"Round {report['round']} processed: {report['advanced']} advanced, {report['eliminated']} eliminated.",
+        'success'
+    )
+    return redirect(url_for('main.view_candidates', job_id=job.id))
 
 @main.route('/view_applications')
 @role_required('applicant', 'both')
@@ -447,6 +704,7 @@ def view_candidates(job_id):
         abort(403)
 
     applications = Application.query.filter_by(job_id=job_id).all()
+    round_configs = InterviewRoundConfig.query.filter_by(job_id=job_id).order_by(InterviewRoundConfig.round_number.asc()).all()
     candidates = []
     for app in applications:
         user = User.query.get(app.user_id)
@@ -459,7 +717,84 @@ def view_candidates(job_id):
             'applied_on': app.timestamp
         })
 
-    return render_template('view_candidates.html', candidates=candidates, job=job)
+    return render_template('view_candidates.html', candidates=candidates, job=job, round_configs=round_configs)
+
+
+@main.route('/job/<int:job_id>/shortlist_report')
+@role_required('recruiter', 'both')
+def shortlist_report(job_id):
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != g.user.id:
+        abort(403)
+
+    ats_rows = ATSResult.query.filter_by(job_id=job_id).order_by(ATSResult.ats_score.desc()).all()
+    shortlisted = []
+    rejected = []
+
+    for row in ats_rows:
+        app = Application.query.get(row.application_id)
+        user = User.query.get(row.applicant_id)
+        if app is None or user is None:
+            continue
+
+        item = {
+            'application_id': app.id,
+            'candidate_name': f"{user.first_name} {user.last_name}",
+            'email': user.email,
+            'ats_score': row.ats_score,
+            'score_breakdown': row.score_breakdown,
+            'reason': row.shortlist_reason or 'Evaluated by ATS',
+            'status': app.status,
+        }
+
+        if app.status in {'Shortlisted', 'Advanced', 'Recommended', 'Accepted'}:
+            shortlisted.append(item)
+        elif app.status in {'Rejected', 'Eliminated'}:
+            rejected.append(item)
+
+    summary = {
+        'received': len(ats_rows),
+        'shortlisted': len(shortlisted),
+        'rejected': len(rejected),
+    }
+
+    return render_template(
+        'shortlist_report.html',
+        job=job,
+        summary=summary,
+        shortlisted=shortlisted,
+        rejected=rejected,
+    )
+
+
+@main.route('/job/<int:job_id>/round_scoring/<int:round_number>')
+@role_required('recruiter', 'both')
+def round_scoring_form(job_id, round_number):
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != g.user.id:
+        abort(403)
+
+    round_config = InterviewRoundConfig.query.filter_by(job_id=job_id, round_number=round_number).first_or_404()
+    applications = Application.query.filter_by(job_id=job_id).filter(Application.status.in_(['Shortlisted', 'Advanced'])).all()
+
+    candidates = []
+    for app in applications:
+        user = User.query.get(app.user_id)
+        if user is None:
+            continue
+        candidates.append({
+            'application_id': app.id,
+            'name': f"{user.first_name} {user.last_name}",
+            'email': user.email,
+            'status': app.status,
+        })
+
+    return render_template(
+        'round_scoring.html',
+        job=job,
+        round_config=round_config,
+        candidates=candidates,
+    )
 
 @main.route('/view_interview/<int:application_id>')
 @role_required('recruiter', 'both')
@@ -469,14 +804,14 @@ def view_interview(application_id):
     if job.user_id != g.user.id:
         abort(403)
 
-    application_data = applications_collection.find_one({'application_id': str(application_id)})
+    application_data = mongo_find_one({'application_id': str(application_id)})
     if not application_data:
         flash('Interview data not found.', 'danger')
         return redirect(url_for('main.view_candidates', job_id=job.id))
 
     feedback_list = application_data.get('feedback', [])
     
-    # Pass application_id to the template
+    # Pass application_id to the template 
     return render_template('view_interview.html', feedback_list=feedback_list, applicant=application.user, application_id=application_id)
 
 @main.route('/accept_application/<int:application_id>', methods=['POST'])
@@ -509,7 +844,37 @@ def reject_application(application_id):
 @role_required('recruiter', 'both')
 def dashboard():
     jobs = Job.query.filter_by(user_id=g.user.id).all()
-    return render_template('dashboard.html', jobs=jobs)
+    job_ids = [job.id for job in jobs]
+    funnel_counts = {
+        'applied': 0,
+        'ats_scored': 0,
+        'shortlisted': 0,
+        'in_rounds': 0,
+        'offer': 0,
+        'final_rejection': 0,
+    }
+
+    if job_ids:
+        states = db.session.query(ApplicantPipelineState.state, func.count(ApplicantPipelineState.id)).filter(
+            ApplicantPipelineState.job_id.in_(job_ids)
+        ).group_by(ApplicantPipelineState.state).all()
+
+        for state, count in states:
+            state_upper = (state or '').upper()
+            if state_upper == 'APPLIED':
+                funnel_counts['applied'] += count
+            elif state_upper == 'ATS_SCORED':
+                funnel_counts['ats_scored'] += count
+            elif state_upper == 'SHORTLISTED':
+                funnel_counts['shortlisted'] += count
+            elif state_upper.startswith('ROUND_') or state_upper == 'ADVANCED':
+                funnel_counts['in_rounds'] += count
+            elif state_upper == 'OFFER':
+                funnel_counts['offer'] += count
+            elif state_upper in {'REJECTED', 'ELIMINATED', 'FINAL_REJECTION'}:
+                funnel_counts['final_rejection'] += count
+
+    return render_template('dashboard.html', jobs=jobs, funnel_counts=funnel_counts)
 
 @main.route('/get_job_data/<int:job_id>')
 @role_required('recruiter', 'both')
@@ -525,24 +890,21 @@ def get_job_data(job_id):
 
     for app in applications:
         candidate = User.query.get(app.user_id)
-        feedback_data = applications_collection.find_one({'application_id': str(app.id)})
+        feedback_data = mongo_find_one({'application_id': str(app.id)}) or {}
         total_score = sum(fb['score'] for fb in feedback_data.get('feedback', []) if fb['score'] is not None)
-
-        # Calculate age from birthday
         try:
             birthday = datetime.strptime(candidate.birthday, "%Y-%m-%d")
             today = datetime.now()
             age = today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
         except ValueError:
-            age = None  # or set a default value if the birthday format is incorrect
-
+            age = None  
         if age is not None:
             ages.append(age)
 
         candidates.append({
             'name': f"{candidate.first_name} {candidate.last_name}",
             'score': total_score,
-            'app_id': app.id  # Store app ID for later use
+            'app_id': app.id
         })
 
         # Add questions and responses

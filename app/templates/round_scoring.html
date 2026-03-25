@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Station-S | Round Scoring{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1 style="margin:0;">{{ job.title }} - {{ round_config.round_name }} (Round {{ round_config.round_number }})</h1>
+    <a href="{{ url_for('main.view_candidates', job_id=job.id) }}" class="view-interview-button">Back to Candidates</a>
+</div>
+
+<div class="jobs-wrapper" style="margin-bottom:20px;">
+    <p><strong>Type:</strong> {{ round_config.round_type }}</p>
+    <p><strong>Duration:</strong> {{ round_config.duration_minutes }} minutes</p>
+    <p><strong>Advance Count:</strong> {{ round_config.advance_count or 'All' }}</p>
+</div>
+
+<form method="post" action="{{ url_for('main.complete_round', job_id=job.id, round_number=round_config.round_number) }}" id="round-score-form">
+    <div class="jobs-wrapper">
+        <table class="candidates-table" style="width:100%;">
+            <thead>
+                <tr>
+                    <th>Candidate</th>
+                    <th>Email</th>
+                    <th>Current Status</th>
+                    <th>Round Score (0-100)</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in candidates %}
+                <tr>
+                    <td>{{ candidate.name }}</td>
+                    <td>{{ candidate.email }}</td>
+                    <td>{{ candidate.status }}</td>
+                    <td>
+                        <input type="number" min="0" max="100" step="0.1" class="score-input" data-application-id="{{ candidate.application_id }}" required>
+                    </td>
+                    <td>
+                        <input type="text" class="note-input" data-application-id="{{ candidate.application_id }}" placeholder="Optional comments">
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">No candidates available for scoring in this round.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <input type="hidden" name="round_evaluations" id="round-evaluations-json" required>
+    <button type="submit" class="add-job-button">Submit Round Scores</button>
+</form>
+
+<script>
+document.getElementById('round-score-form').addEventListener('submit', function(event) {
+    const scoreInputs = document.querySelectorAll('.score-input');
+    const noteInputs = document.querySelectorAll('.note-input');
+    const notesByApp = {};
+
+    noteInputs.forEach((input) => {
+        notesByApp[input.dataset.applicationId] = input.value.trim();
+    });
+
+    const payload = [];
+    scoreInputs.forEach((input) => {
+        const score = input.value;
+        if (score === '') {
+            return;
+        }
+        payload.push({
+            application_id: Number(input.dataset.applicationId),
+            round_score: Number(score),
+            evaluation: {
+                notes: notesByApp[input.dataset.applicationId] || ''
+            }
+        });
+    });
+
+    if (!payload.length) {
+        event.preventDefault();
+        alert('Enter at least one score before submitting.');
+        return;
+    }
+
+    document.getElementById('round-evaluations-json').value = JSON.stringify(payload);
+});
+</script>
+{% endblock %}

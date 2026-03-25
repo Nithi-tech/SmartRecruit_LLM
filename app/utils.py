@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer, util  # type: ignore
 # Lazy-initialize the sentence transformer model so app startup and DB setup
 # do not block on model download.
 model = None
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 def get_sentence_model():
     """Returns a cached sentence transformer model instance."""

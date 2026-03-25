@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Station-S | Shortlist Report{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1 style="margin:0;">Shortlist Report: {{ job.title }}</h1>
+    <a href="{{ url_for('main.view_candidates', job_id=job.id) }}" class="view-interview-button">Back to Candidates</a>
+</div>
+
+<div class="jobs-wrapper" style="margin-bottom:20px;">
+    <p><strong>Total applications:</strong> {{ summary.received }}</p>
+    <p><strong>Shortlisted:</strong> {{ summary.shortlisted }}</p>
+    <p><strong>Rejected:</strong> {{ summary.rejected }}</p>
+</div>
+
+<div class="jobs-wrapper" style="margin-bottom:20px;">
+    <h3>Shortlisted Candidates</h3>
+    <table class="candidates-table" style="width:100%;">
+        <thead>
+            <tr>
+                <th>Candidate</th>
+                <th>Email</th>
+                <th>ATS</th>
+                <th>Breakdown</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in shortlisted %}
+            <tr>
+                <td>{{ item.candidate_name }}</td>
+                <td>{{ item.email }}</td>
+                <td>{{ item.ats_score }}</td>
+                <td>
+                    K: {{ item.score_breakdown.keyword_match or 0 }},
+                    E: {{ item.score_breakdown.experience_relevance or 0 }},
+                    Edu: {{ item.score_breakdown.education_fit or 0 }},
+                    P: {{ item.score_breakdown.project_relevance or 0 }}
+                </td>
+                <td>{{ item.status }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No shortlisted candidates yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="jobs-wrapper">
+    <h3>Rejected Candidates</h3>
+    <table class="candidates-table" style="width:100%;">
+        <thead>
+            <tr>
+                <th>Candidate</th>
+                <th>Email</th>
+                <th>ATS</th>
+                <th>Primary Reason</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in rejected %}
+            <tr>
+                <td>{{ item.candidate_name }}</td>
+                <td>{{ item.email }}</td>
+                <td>{{ item.ats_score }}</td>
+                <td>{{ item.reason }}</td>
+                <td>{{ item.status }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No rejected candidates yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

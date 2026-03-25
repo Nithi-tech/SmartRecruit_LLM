@@ -13,3 +13,9 @@ class Config:
     API_TOKEN = os.environ.get('API_TOKEN', 'default_api_token')
     API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
     MONGO_URI = 'mongodb://localhost:27017/applications'
+    SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+    SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+    SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', SMTP_USERNAME or 'noreply@smartrecruit.local')
+    SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() == 'true'

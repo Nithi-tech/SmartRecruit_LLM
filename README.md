@@ -1,121 +1,116 @@
-# **RucRut - Intelligent Recruitment Optimization System**
+# Station S SmartRecruit
 
-## **Overview**
-RucRut is an advanced AI-powered recruitment system designed to enhance and streamline the hiring process for both **job providers** and **candidates**. The platform leverages cutting-edge **Natural Language Processing (NLP)** and **AI models** to generate tailored interview questions based on the candidate’s CV and job requirements, automatically evaluate their responses, and provide comprehensive feedback.
+Station S SmartRecruit is an AI-assisted recruitment platform that helps teams manage job postings, evaluate candidates, and run structured interview workflows with automated scoring and reporting.
 
-This system is built using **Flask**, **SQLAlchemy**, **MongoDB**, and **Hugging Face's NLP models**, with a focus on offering efficient, bias-reducing, and personalized recruitment experiences.
+## Overview
 
----
+The application supports two core user roles:
 
-## **Video Walkthrough**
+- Recruiters can create job posts, review applicants, run AI-assisted interview rounds, and analyze candidate performance.
+- Applicants can discover roles, submit applications, answer interview questions, and receive feedback.
 
-[Click here to watch the video walkthrough](https://drive.google.com/file/d/103M12Ok-hC81KZHVV7FvGC586wEa_KKX/view?usp=sharing)
+The platform combines Flask-based web workflows with NLP-powered components for interview generation and response evaluation.
 
-> *(This video explains how the application works)*
+## Key Features
 
----
+- Role-based authentication and dashboards
+- Job posting and lifecycle management
+- CV upload and candidate profile processing
+- AI-generated interview questions aligned to role requirements
+- Candidate response review and round-based scoring
+- Shortlist reporting and recruiter insights
 
-## **Features**
+## Tech Stack
 
-### **For Job Providers**
-- **Dashboard**: Manage job postings and track candidate applications in real-time.
-- **Job Posting Creation**: Create and modify job postings with detailed specifications.
-- **AI-Generated Interview Questions**: Automatically generate interview questions based on candidate CV and job description.
-- **Automatic Feedback and Scoring**: Receive AI-driven feedback and score candidates based on their interview responses.
-- **Analytics and Reports**: View candidate performance metrics through various graphs, such as age distribution, score comparisons, and top performers.
+- Backend: Flask, Flask-SQLAlchemy, Flask-Session, Flask-Migrate
+- Data: SQLite (default), MongoDB (application data)
+- AI/NLP: Transformers, Sentence Transformers, Hugging Face Inference API
+- Frontend: HTML, CSS, JavaScript (Jinja templates)
 
-### **For Candidates**
-- **Job Search and Application**: Browse and apply for job postings in just a few clicks.
-- **AI-Powered Interviews**: Experience tailored interview questions based on your CV and the specific job requirements.
-- **Immediate Feedback**: Get real-time feedback on interview responses to improve performance.
+## Project Structure
 
----
+```text
+SmartRecruit_LLM/
+  app/
+    templates/
+    static/
+    routes.py
+    models.py
+    pipeline.py
+  create_db.py
+  run.py
+  requirements.txt
+```
 
-## **Setup and Installation**
+## Prerequisites
 
-To set up the RucRut application locally, follow these steps:
+- Python 3.11+
+- MongoDB running locally (default URI: `mongodb://localhost:27017/`)
+- `pip` for dependency installation
 
-### **Requirements**
-- **Python 3.11+**
-- **Flask 2.2.3**
-- **MongoDB 4.7.0**
-- **SQLAlchemy 2.0.8**
+## Quick Start
 
-### **Steps**
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/OmarNouih/SmartRecruit_LLM.git
-   cd RucRut
-   ```
+1. Clone the repository:
 
-2. **Install required packages**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+git clone https://github.com/Nithi-tech/SmartRecruit_LLM.git
+cd SmartRecruit_LLM
+```
 
-3. **Set up environment variables**:
-   - Ensure to configure your `.env` file with the necessary environment variables for the Flask application, MongoDB connection, and Hugging Face API credentials.
+2. Create and activate a virtual environment:
 
-4. **Initialize the database**:
-   - Set up your SQLite database:
-     ```bash
-     flask db upgrade
-     ```
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-5. **Run the Flask application**:
-   ```bash
-   flask run
-   ```
-   The application will be available on `http://localhost:5000`.
+3. Install dependencies:
 
-6. **Access MongoDB**:
-   - Ensure MongoDB is running, and it's properly configured in the `.env` file.
+```bash
+pip install -r requirements.txt
+```
 
----
+4. Configure environment variables in a `.env` file:
 
-## **How to Use the Application**
+```env
+SECRET_KEY=change-me
+DATABASE_URL=sqlite:///site.db
+API_TOKEN=your_huggingface_token
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@example.com
+SMTP_PASSWORD=your_password_or_app_password
+SMTP_FROM_EMAIL=your_email@example.com
+SMTP_USE_TLS=true
+```
 
-### **Job Providers**
-1. **Sign up and Log in**.
-2. **Create Job Postings**: Add jobs with specific titles, locations, descriptions, and other necessary information.
-3. **Manage Applications**: Review candidates’ CVs, interview responses, and scores.
-4. **Track Data**: Use the dashboard to view visual insights such as the top 3 candidates, score comparisons, and other analytics.
+5. Initialize the database schema (optional helper script):
 
-### **Candidates**
-1. **Browse Jobs**: Search and apply for jobs that match your skills.
-2. **AI Interview**: Participate in personalized interviews generated based on your CV.
-3. **Get Feedback**: Receive instant feedback and improve based on AI evaluations.
+```bash
+python create_db.py
+```
 
----
+6. Run the application:
 
-## **Technologies Used**
+```bash
+python run.py
+```
 
-- **Backend**: Flask, SQLAlchemy, MongoDB
-- **Frontend**: HTML5, CSS3, JavaScript
-- **AI Models**: Hugging Face Transformers, Sentence Transformers
-- **PDF Parsing**: PDFPlumber
+The app will be available at `http://127.0.0.1:5000`.
 
----
+## Development Notes
 
-## **Contributing**
+- Uploaded files are stored under `app/static/uploads/`.
+- Session files are stored in `flask_session/` during local execution.
+- Default database is SQLite, but can be changed via `DATABASE_URL`.
 
-We welcome contributions to improve the functionality of RucRut. If you'd like to contribute, please:
+## Contributing
 
 1. Fork the repository.
-2. Create a new branch for your feature/bug fix.
-3. Submit a pull request.
+2. Create a feature branch.
+3. Commit your changes with clear messages.
+4. Open a pull request.
 
----
+## License
 
-## **License**
-
-This project is licensed under the **3DSF License**.
-
----
-
-## **Contact**
-
-For any inquiries, you can reach out to the developers:
-
-- **Omar NOUIH** - [Email](omarnouih@gmail.com)
-- **Salma SAHL** - [Email](sahlsalma56@gmail.com)
+This repository is distributed under the license terms defined by the project maintainers.
